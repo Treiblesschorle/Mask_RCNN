@@ -100,7 +100,7 @@ def train():
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=30,
+                epochs=1,
                 layers='heads')
 
 
@@ -133,25 +133,7 @@ def extend_masks(masks_list):
             ml.extend([zero_tile] * (max_instances - len(ml)))
 
 
-def predict():
-    class InferenceConfig(FishConfig):
-        GPU_COUNT = 1
-        IMAGES_PER_GPU = 1
-
-    inference_config = InferenceConfig()
-
-    # Validation dataset
-    dataset_val = FishDataset()
-    dataset_val.load('D:/Dave/MRCNN/data/test')
-    dataset_val.prepare()
-
-    model_dir = 'D:/Dave/MRCNN/runs'
-    # Recreate the model in inference mode
-    model = modellib.MaskRCNN(mode="inference",
-                              config=inference_config,
-                              model_dir=model_dir)
-
-    model_path = model.find_last()
+def score_model(model_path, model, dataset, config):
     model.load_weights(model_path, by_name=True)
 
     img_num = 0
@@ -159,7 +141,7 @@ def predict():
     infos = []
 
     size_and_infos_per_img = []
-    for info in dataset_val.image_info:
+    for info in dataset.image_info:
 
         nums = [int(s) for s in re.findall(r'\d+', info['mask_path'])]
 
@@ -189,8 +171,8 @@ def predict():
         masks_list = []
         for info in infos:
             # print(info)
-            original_image, image_meta, gt_class_id, gt_bbox, gt_mask = modellib.load_image_gt(dataset_val,
-                                                                                               inference_config,
+            original_image, image_meta, gt_class_id, gt_bbox, gt_mask = modellib.load_image_gt(dataset,
+                                                                                               config,
                                                                                                info['id'],
                                                                                                use_mini_mask=False)
             imgs_list.append((original_image,))
@@ -232,7 +214,7 @@ def predict():
 
             mean_ap = ap.ap_dsb2018([stitched_masks], [stitched_gt_masks], compute_mean=True)
             aps.append(mean_ap[-1])
-            print(mean_ap)
+            # print(mean_ap)
 
             # futil.plot_imgs([stitched_img, stitched_gt_masks, stitched_masks])
             # blend_pred = futil.blend_images(stitched_img, futil.mask_to_color_image(np.uint8(stitched_masks > 0)),
@@ -241,8 +223,33 @@ def predict():
             #                               factor=0.3)
             # futil.plot_imgs([blend_pred, blend_gt])
 
-    print(f'Mean ap: {sum(aps) / len(aps)}')
+    return sum(aps) / len(aps)
 
 
-predict()
+def score(base_folder):
+    class InferenceConfig(FishConfig):
+        GPU_COUNT = 1
+        IMAGES_PER_GPU = 1
+
+    inference_config = InferenceConfig()
+
+    # Validation dataset
+    dataset_val = FishDataset()
+    dataset_val.load('D:/Dave/MRCNN/data/test')
+    dataset_val.prepare()
+
+    model_dir = 'D:/Dave/MRCNN/runs'
+    # Recreate the model in inference mode
+    model = modellib.MaskRCNN(mode="inference",
+                              config=inference_config,
+                              model_dir=model_dir)
+
+    model_paths = futil.list_files(directory=base_folder, endings='.h5')
+
+    for model_path in model_paths:
+        score = score_model(model_path, model, dataset_val, inference_config)
+        print(model_path + f' Score: {score}')
+
+
+score('D:/Dave/MRCNN/runs/fish20190730T1808')
 # train()
