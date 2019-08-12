@@ -22,7 +22,7 @@ class FishConfig(Config):
     NAME = "fish"
 
     GPU_COUNT = 1
-    IMAGES_PER_GPU = 3
+    IMAGES_PER_GPU = 2
 
     NUM_CLASSES = 1 + 1
 
@@ -78,7 +78,7 @@ class FishDataset(utils.Dataset):
         return masks.astype(np.bool), np.array(class_ids, dtype=np.int32)
 
 
-def train():
+def train(layers, epochs):
     """Train the model."""
     # Training dataset.
     dataset_train = FishDataset()
@@ -90,7 +90,7 @@ def train():
     dataset_val.load('D:/Dave/MRCNN/data/test')
     dataset_val.prepare()
 
-    model_dir = 'D:/Dave/MRCNN/runs'
+    model_dir = 'D:/Dave/MRCNN/runs/' + f'layers_{layers}_epochs_{epochs}'
     futil.mkdir_if_not_exists(model_dir)
     config = FishConfig()
     model = modellib.MaskRCNN(mode="training", config=config,
@@ -100,8 +100,8 @@ def train():
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=1,
-                layers='heads')
+                epochs=epochs,
+                layers=layers)
 
 
 def image_and_labelling(imgs_list, masks_list, gt_masks_list, size):
@@ -246,10 +246,15 @@ def score(base_folder):
 
     model_paths = futil.list_files(directory=base_folder, endings='.h5')
 
+    scores = []
     for model_path in model_paths:
         score = score_model(model_path, model, dataset_val, inference_config)
+        scores.append(score)
         print(model_path + f' Score: {score}')
 
+    with open(base_folder + '/scores.txt', 'w') as f:
+        f.writelines([str(x) for x in scores])
 
-score('D:/Dave/MRCNN/runs/fish20190730T1808')
-# train()
+
+score('D:/Dave/MRCNN/runs/layers_all_epochs_30/fish20190809T1329')
+# train("all", 30)
